@@ -1,5 +1,5 @@
 var mongoose = require('mongoose');
-var mongoUri = 'mongodb://localhost/test';
+var mongoUri = 'mongodb://localhost:27017/test';
 
 function dropTestDatabase(done) {
 	mongoose.connect(mongoUri, { useNewUrlParser: true }, function (err) {
