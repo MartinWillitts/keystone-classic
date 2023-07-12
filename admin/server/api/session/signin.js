@@ -1,7 +1,7 @@
 var utils = require('keystone-utils');
 var session = require('../../../../lib/session');
 
-function signin (req, res) {
+async function signin (req, res) {
 	var keystone = req.keystone;
 	if (!keystone.security.csrf.validate(req)) {
 		return res.apiError(403, 'invalid csrf');
@@ -11,7 +11,8 @@ function signin (req, res) {
 	}
 	var User = keystone.list(keystone.get('user model'));
 	var emailRegExp = new RegExp('^' + utils.escapeRegExp(req.body.email) + '$', 'i');
-	User.model.findOne({ email: emailRegExp }).exec(function (err, user) {
+	try {
+		const user = await User.model.findOne({ email: emailRegExp }).exec();
 		if (user) {
 			keystone.callHook(user, 'pre:signin', req, function (err) {
 				if (err) return res.status(500).json({ error: 'pre:signin error', detail: err });
@@ -30,12 +31,14 @@ function signin (req, res) {
 					}
 				});
 			});
-		} else if (err) {
+		}
+	} catch(err) {
+		if (err) {
 			return res.status(500).json({ error: 'database error', detail: err });
 		} else {
 			return res.status(401).json({ error: 'invalid details' });
 		}
-	});
+	}
 }
 
 module.exports = signin;

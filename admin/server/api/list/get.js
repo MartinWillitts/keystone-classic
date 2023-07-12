@@ -2,7 +2,7 @@ var async = require('async');
 var assign = require('object-assign');
 var listToArray = require('list-to-array');
 
-module.exports = function (req, res) {
+module.exports = async function (req, res) {
 	var where = {};
 	var fields = req.query.fields;
 	var includeCount = req.query.count !== 'false';
@@ -39,33 +39,18 @@ module.exports = function (req, res) {
 		});
 	}
 	var sort = req.list.expandSort(req.query.sort);
-	async.waterfall([
-		function (next) {
-			if (!includeCount) {
-				return next(null, 0);
-			}
-			query.countDocuments(next);
-		},
-		function (count, next) {
-			if (!includeResults) {
-				return next(null, count, []);
-			}
+  try {
+		const count = includeCount ? await req.list.model.countDocuments() : 0;
+		let items = [];
+		if (includeResults) {
 			query.find();
 			query.limit(Number(req.query.limit) || 100);
 			query.skip(Number(req.query.skip) || 0);
 			if (sort.string) {
 				query.sort(sort.string);
 			}
-			query.exec(function (err, items) {
-				next(err, count, items);
-			});
-		},
-	], function (err, count, items) {
-		if (err) {
-			res.logError('admin/server/api/list/get', 'database error finding items', err);
-			return res.apiError('database error', err);
+			items = await query.exec();
 		}
-
 		return res.json({
 			results: includeResults
 				? items.map(function (item) {
@@ -76,5 +61,53 @@ module.exports = function (req, res) {
 				? count
 				: undefined,
 		});
-	});
+	} catch(err) {
+		res.logError('admin/server/api/list/get', 'database error finding items', err);
+		return res.apiError('database error', err);
+	}
+
+
+	// async.waterfall([
+	// 	function (next) {
+	// 		if (!includeCount) {
+	// 			return next(null, 0);
+	// 		}
+	// 		try {
+	// 			const count = await query.countDocuments();
+	// 			next();
+	// 		} catch(err) {
+	// 			next(err);
+	// 		}
+	// 	},
+	// 	function (count, next) {
+	// 		if (!includeResults) {
+	// 			return next(null, count, []);
+	// 		}
+	// 		query.find();
+	// 		query.limit(Number(req.query.limit) || 100);
+	// 		query.skip(Number(req.query.skip) || 0);
+	// 		if (sort.string) {
+	// 			query.sort(sort.string);
+	// 		}
+	// 		query.exec(function (err, items) {
+	// 			next(err, count, items);
+	// 		});
+	// 	},
+	// ], function (err, count, items) {
+	// 	if (err) {
+	// 		res.logError('admin/server/api/list/get', 'database error finding items', err);
+	// 		return res.apiError('database error', err);
+	// 	}
+
+	// 	return res.json({
+	// 		results: includeResults
+	// 			? items.map(function (item) {
+	// 				return req.list.getData(item, fields, req.query.expandRelationshipFields);
+	// 			})
+	// 			: undefined,
+	// 		count: includeCount
+	// 			? count
+	// 			: undefined,
+	// 	});
+	// });
 };

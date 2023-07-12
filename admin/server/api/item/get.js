@@ -2,7 +2,7 @@ var _ = require('lodash');
 var async = require('async');
 var listToArray = require('list-to-array');
 
-module.exports = function (req, res) {
+module.exports = async function (req, res) {
 	var keystone = req.keystone;
 	var query = req.list.model.findById(req.params.id);
 
@@ -17,9 +17,8 @@ module.exports = function (req, res) {
 		return res.status(401).json({ error: 'fields must be undefined, a string, or an array' });
 	}
 
-	query.exec(function (err, item) {
-
-		if (err) return res.status(500).json({ err: 'database error', detail: err });
+	try {
+	  item = await query.exec();
 		if (!item) return res.status(404).json({ err: 'not found', id: req.params.id });
 
 		var tasks = [];
@@ -91,28 +90,27 @@ module.exports = function (req, res) {
 							done(err);
 						});
 					}
-
-				}, function (err) {
-					// put the drilldown list back in the right order
-					drilldown.def.reverse();
-					drilldown.items.reverse();
-					cb(err);
 				});
-
 			});
 		}
+	} catch(err) {
+		if (err) return res.status(500).json({ err: 'database error', detail: err });
+		// put the drilldown list back in the right order
+		drilldown.def.reverse();
+		drilldown.items.reverse();
+		cb(err);
+	}
 
-		/* Process tasks & return */
-		async.parallel(tasks, function (err) {
-			if (err) {
-				return res.status(500).json({
-					err: 'database error',
-					detail: err,
-				});
-			}
-			res.json(_.assign(req.list.getData(item, fields), {
-				drilldown: drilldown,
-			}));
-		});
+	/* Process tasks & return */
+	async.parallel(tasks, function (err) {
+		if (err) {
+			return res.status(500).json({
+				err: 'database error',
+				detail: err,
+			});
+		}
+		res.json(_.assign(req.list.getData(item, fields), {
+			drilldown: drilldown,
+		}));
 	});
 };
